@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev --prefix Backend\" \"npm run dev --prefix Frontend\"",
     "install:all": "npm install && npm install --prefix Backend && npm install --prefix Frontend",
+    "build:frontend": "npm run build --prefix Frontend",
+    "firebase:deploy:firestore": "npm run firebase:deploy:firestore --prefix Frontend",
+    "firebase:deploy:hosting": "npm run firebase:deploy:hosting --prefix Frontend",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

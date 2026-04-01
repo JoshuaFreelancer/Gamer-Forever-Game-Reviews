@@ -4,8 +4,73 @@ import NodeCache from "node-cache";
 // Inicializamos la caché
 const cache = new NodeCache({ stdTTL: 3600 });
 
+// Colecciones permitidas explícitamente (evita exponer un proxy abierto).
+const ALLOWED_COLLECTION_ENDPOINTS = new Set([
+  "genres",
+  "platforms",
+  "developers",
+  "publishers",
+  "stores",
+  "tags",
+]);
+
+// Cliente HTTP dedicado para RAWG con timeout de seguridad.
+const rawgClient = axios.create({
+  baseURL: process.env.RAWG_BASE_URL,
+  timeout: 8000,
+});
+
+const createHttpError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+const sanitizeQueryParams = (query = {}) => {
+  const page = Number(query.page);
+  const pageSize = Number(query.page_size);
+
+  if (query.page !== undefined && (!Number.isInteger(page) || page < 1)) {
+    throw createHttpError(400, "El parámetro 'page' debe ser un entero mayor o igual a 1.");
+  }
+
+  if (
+    query.page_size !== undefined &&
+    (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 40)
+  ) {
+    throw createHttpError(
+      400,
+      "El parámetro 'page_size' debe ser un entero entre 1 y 40.",
+    );
+  }
+
+  return query;
+};
+
+const shouldRetry = (error) => {
+  if (!error.response) return true;
+  return error.response.status >= 500;
+};
+
+// Wrapper con reintento simple: útil para amortiguar fallos transitorios de RAWG.
+const rawgGet = async (url, params, retries = 1) => {
+  try {
+    return await rawgClient.get(url, { params });
+  } catch (error) {
+    if (retries > 0 && shouldRetry(error)) {
+      return rawgGet(url, params, retries - 1);
+    }
+    throw error;
+  }
+};
+
+const buildRawgParams = (query = {}) => ({
+  key: process.env.RAWG_API_KEY,
+  ...sanitizeQueryParams(query),
+});
+
 // --- 1. FUNCIÓN ORIGINAL: OBTENER LISTA DE JUEGOS ---
-export const getGames = async (req, res) => {
+export const getGames = async (req, res, next) => {
   try {
     const cacheKey = req.originalUrl;
     const cachedData = cache.get(cacheKey);
@@ -14,45 +79,47 @@ export const getGames = async (req, res) => {
       return res.json(cachedData);
     }
 
-    const params = new URLSearchParams({
-      key: process.env.RAWG_API_KEY,
-      ...req.query,
-    });
+    const params = buildRawgParams(req.query);
 
-    const response = await axios.get(`${process.env.RAWG_BASE_URL}/games`, {
-      params,
-    });
+    const response = await rawgGet("/games", params);
 
     cache.set(cacheKey, response.data);
-    res.json(response.data);
+    return res.json(response.data);
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Error al obtener juegos", details: error.message });
+    return next(createHttpError(502, "No fue posible obtener juegos en este momento."));
   }
 };
 
 // --- 2. NUEVA FUNCIÓN: OBTENER DETALLES COMBINADOS ---
-export const getGameDetailsCombined = async (req, res) => {
+export const getGameDetailsCombined = async (req, res, next) => {
   const { id } = req.params;
+
+  if (!/^\d+$/.test(String(id))) {
+    return next(createHttpError(400, "El id del juego es inválido."));
+  }
+
   const cacheKey = `/api/games/details/${id}`;
   const cachedData = cache.get(cacheKey);
 
   if (cachedData) return res.json(cachedData);
 
   try {
-    const params = new URLSearchParams({ key: process.env.RAWG_API_KEY });
-    const baseUrl = process.env.RAWG_BASE_URL;
+    const params = buildRawgParams();
 
     // EL BACKEND HACE EL TRABAJO SUCIO
     const [detailsRes, screenshotsRes, moviesRes] = await Promise.allSettled([
-      axios.get(`${baseUrl}/games/${id}?${params}`),
-      axios.get(`${baseUrl}/games/${id}/screenshots?${params}`),
-      axios.get(`${baseUrl}/games/${id}/movies?${params}`),
+      rawgGet(`/games/${id}`, params),
+      rawgGet(`/games/${id}/screenshots`, params),
+      rawgGet(`/games/${id}/movies`, params),
     ]);
 
     if (detailsRes.status === "rejected") {
-      return res.status(404).json({ error: "Juego no encontrado" });
+      if (detailsRes.reason?.response?.status === 404) {
+        return next(createHttpError(404, "Juego no encontrado"));
+      }
+      return next(
+        createHttpError(502, "No fue posible obtener los detalles del juego."),
+      );
     }
 
     // Empaquetamos todo en un solo JSON
@@ -67,37 +134,41 @@ export const getGameDetailsCombined = async (req, res) => {
     };
 
     cache.set(cacheKey, combinedData); // Lo guardamos en RAM del servidor
-    res.json(combinedData);
+    return res.json(combinedData);
   } catch (error) {
-    res.status(500).json({ error: "Error al obtener detalles del juego" });
+    return next(
+      createHttpError(502, "No fue posible obtener los detalles del juego."),
+    );
   }
 };
 
-export const getCollection = async (req, res) => {
+export const getCollection = async (req, res, next) => {
   try {
     // Extraemos la colección dinámica de la URL (ej: 'genres', 'platforms')
     const { endpoint } = req.params;
+
+    if (!ALLOWED_COLLECTION_ENDPOINTS.has(endpoint)) {
+      return next(createHttpError(400, `Colección no permitida: ${endpoint}`));
+    }
+
     const cacheKey = req.originalUrl;
     const cachedData = cache.get(cacheKey);
 
     if (cachedData) return res.json(cachedData);
 
-    const params = new URLSearchParams({
-      key: process.env.RAWG_API_KEY,
-      ...req.query,
-    });
+    const params = buildRawgParams(req.query);
 
     // Petición dinámica a RAWG
-    const response = await axios.get(
-      `${process.env.RAWG_BASE_URL}/${endpoint}`,
-      { params },
-    );
+    const response = await rawgGet(`/${endpoint}`, params);
 
     cache.set(cacheKey, response.data);
-    res.json(response.data);
+    return res.json(response.data);
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: `Error al obtener la colección: ${req.params.endpoint}` });
+    return next(
+      createHttpError(
+        502,
+        `No fue posible obtener la colección solicitada: ${req.params.endpoint}`,
+      ),
+    );
   }
 };

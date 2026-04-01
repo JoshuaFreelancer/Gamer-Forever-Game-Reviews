@@ -5,6 +5,11 @@ import { MotionConfig, LazyMotion, domAnimation } from "framer-motion";
 import MainLayout from "./layouts/MainLayout";
 import Loader from "./utils/Loader";
 import Home from "./pages/Home";
+import ProtectedRoute from "./components/common/ProtectedRoute";
+import { useAuthStore } from "./store/useAuthStore";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Profile from "./pages/Profile";
 
 // 🚀 EL COMPONENTE ANTI-PARPADEO (Ajustado)
 const DelayedFallback = () => {
@@ -44,6 +49,17 @@ const SuspenseWrapper = () => (
 );
 
 function App() {
+  const initAuthListener = useAuthStore((state) => state.initAuthListener);
+  const cleanupAuthListener = useAuthStore((state) => state.cleanupAuthListener);
+
+  useEffect(() => {
+    initAuthListener();
+
+    return () => {
+      cleanupAuthListener();
+    };
+  }, [initAuthListener, cleanupAuthListener]);
+
   return (
     <MotionConfig reducedMotion="user">
       {/* 🚀 4. Envolvemos las rutas con LazyMotion y el motor ligero (domAnimation) */}
@@ -51,6 +67,16 @@ function App() {
         <Routes>
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Home />} />
+            <Route path="login" element={<Login />} />
+            <Route path="register" element={<Register />} />
+            <Route
+              path="profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
 
             <Route element={<SuspenseWrapper />}>
               <Route path="game/:id" element={<GameDetails />} />

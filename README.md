@@ -99,6 +99,28 @@ Sigue estos pasos para desplegar el proyecto en tu máquina:
     npm run dev
     ```
 
+## 🔐 Auth y Reseñas (Estado Actual)
+
+El proyecto ya incluye:
+
+* **Autenticación con Firebase Auth** (registro, login, perfil y rutas protegidas).
+* **Reseñas por juego con Firestore** (crear, editar y eliminar reseña propia; lectura pública).
+* **Reglas e índices de Firestore** configurados en `Frontend/firestore.rules` y `Frontend/firestore.indexes.json`.
+
+### Despliegue recomendado de Firestore
+
+Desde la raíz:
+
+```bash
+npm run firebase:deploy:firestore
+```
+
+Desde `Frontend/` también puedes usar:
+
+```bash
+npm run firebase:deploy:firestore
+```
+
 ## 👤 Autor
 
 **Joshua Freelancer**
@@ -107,7 +129,6 @@ Sigue estos pasos para desplegar el proyecto en tu máquina:
 
 ## 🔮 Futuras Mejoras
 
-* **Autenticación de Usuarios:** Integración con Firebase Auth para permitir a los usuarios crear cuentas.
 * **Colecciones Personalizadas:** Capacidad para que los usuarios guarden juegos en listas como "Jugando", "Completados" o "Lista de Deseos".
 * **Modo Claro/Oscuro:** Toggle de temas utilizando las capacidades nativas de Tailwind CSS.
 

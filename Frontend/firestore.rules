@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function validReviewPayload(data) {
+      return data.gameId is string
+        && data.gameName is string
+        && data.uid is string
+        && data.authorName is string
+        && data.rating is number
+        && data.rating >= 1
+        && data.rating <= 5
+        && data.comment is string
+        && data.comment.size() >= 20
+        && data.comment.size() <= 1200
+        && data.status is string
+        && data.status == 'published';
+    }
+
+    // El ID del documento debe ser estable y derivado del juego + usuario.
+    function validReviewId(reviewId, data) {
+      return reviewId == (data.gameId + '_' + data.uid);
+    }
+
+    // Evita que se inyecten campos inesperados desde clientes modificados.
+    function validReviewKeys(data) {
+      return data.keys().hasOnly([
+        'gameId',
+        'gameName',
+        'uid',
+        'authorName',
+        'authorEmail',
+        'rating',
+        'comment',
+        'status',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    match /game_reviews/{reviewId} {
+      allow read: if resource.data.status == 'published';
+
+      allow create: if isSignedIn()
+        && validReviewId(reviewId, request.resource.data)
+        && isOwner(request.resource.data.uid)
+        && validReviewKeys(request.resource.data)
+        && validReviewPayload(request.resource.data);
+
+      allow update: if isSignedIn()
+        && isOwner(resource.data.uid)
+        && isOwner(request.resource.data.uid)
+        && validReviewId(reviewId, request.resource.data)
+        && validReviewKeys(request.resource.data)
+        && request.resource.data.gameId == resource.data.gameId
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validReviewPayload(request.resource.data);
+
+      allow delete: if isSignedIn() && isOwner(resource.data.uid);
+    }
+  }
+}

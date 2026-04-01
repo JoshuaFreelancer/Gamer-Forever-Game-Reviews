@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Bell, Menu, User, X, Zap } from "lucide-react";
 import Logo from "/apple-touch-icon.png";
 import SearchBar from "../components/common/SearchBar";
+import { useAuthStore } from "../store/useAuthStore";
 
 const EXPLORE_LINKS = [
   { name: "Inicio", path: "/" },
@@ -14,6 +15,13 @@ const EXPLORE_LINKS = [
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const user = useAuthStore((state) => state.user);
+
+  const isLoggedIn = Boolean(user);
+  const userLabel = isLoggedIn
+    ? (user.displayName || user.email?.split("@")[0] || "PLAYER").toUpperCase()
+    : "LOGIN";
+  const profilePath = isLoggedIn ? "/profile" : "/login";
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -138,12 +146,12 @@ const Header = () => {
 
             {/* Avatar */}
             <Link
-              to="/profile"
+              to={profilePath}
               className="flex items-center gap-2 md:gap-4 group transform-gpu"
             >
               <div className="text-right hidden md:block">
                 <span className="block font-marker text-xl text-white leading-none group-hover:text-jinx-pink transition-colors">
-                  GUEST
+                  {userLabel}
                 </span>
                 <div className="h-1.5 w-full bg-jinx-pink mt-1 border border-black transform -skew-x-12 shadow-[2px_2px_0_#000]"></div>
               </div>

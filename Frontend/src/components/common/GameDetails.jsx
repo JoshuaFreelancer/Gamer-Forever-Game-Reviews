@@ -23,6 +23,7 @@ import { getPlatformIcon } from "../../utils/platformIcons";
 import { getStoreIcon } from "../../utils/storeIcons";
 import { useGameDetails } from "../../hooks/useGamesData";
 import { getResponsiveSrcSet } from "../../utils/imageCrop";
+import ReviewsSection from "./reviews/ReviewsSection";
 
 // ASSETS IMPORTS
 import BrushPink from "../../assets/images/brush_royal_pink.webp";
@@ -450,6 +451,8 @@ const GameDetails = () => {
             )}
           </div>
         </div>
+
+        <ReviewsSection gameId={id} gameName={game.name} />
       </div>
     </section>
   );

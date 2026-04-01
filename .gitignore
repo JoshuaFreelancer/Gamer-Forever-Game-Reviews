@@ -43,6 +43,7 @@ lerna-debug.log*
 .vite/
 .turbo/
 coverage/
+docs
 
 # =========================================
 # SISTEMA OPERATIVO Y EDITORES
@@ -50,6 +51,7 @@ coverage/
 .DS_Store
 Thumbs.db
 .vscode/*
+.vscode
 !.vscode/extensions.json
 .idea/
 *.suo
@@ -58,3 +60,5 @@ Thumbs.db
 *.sln
 *.sw?
 *.local
+# Engram AI agent memory
+.engram/
